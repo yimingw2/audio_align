@@ -5,18 +5,18 @@
 ####################################################################
 
 import sys
+import scipy.io
+import numpy as np
 from fuzzy_match_word import fuzzy_match
 
 
 class Alignment():
 
 
-	def __init__(self, label, recog_file_path, trans_file_path, start_offset, end_offset, output_stm_path, output_ctm_path, noise_itv):
+	def __init__(self, label, recog_file_path, trans_file_path, output_stm_path, output_ctm_path, noise_itv):
 		self.label = label
 		self.recog_file_path = recog_file_path
 		self.trans_file_path = trans_file_path
-		self.start_offset = start_offset
-		self.end_offset = end_offset
 		self.output_stm_path = output_stm_path
 		self.output_ctm_path = output_ctm_path
 		self.noise_itv = noise_itv # [[t1, t2], [t3]]
@@ -220,6 +220,69 @@ def write_output(stm_t_dict, output_file_name):
 	f.close()
 '''
 
+def get_noise_itv(noise_file_path, conf_level):
+	conf = scipy.io.loadmat(noise_file_path)
+	conf = conf["conf"]
+	frames = conf.shape[0] / 10
+	conf = conf[:frames*10,1]
+	conf = np.reshape(conf, (-1,10))
+	conf_s = np.mean(conf, axis=1)
+	seconds = conf_s.shape[0] / 5
+	conf_5s = np.mean(np.reshape(conf_s[:seconds*5], (-1,5)), axis=1)
+
+	print(np.mean(conf_s[:185]))
+	print(np.mean(conf_s[185:1495]))
+	print(np.mean(conf_s[1495:]))
+
+	conf_s = conf_s.tolist()
+	conf_5s = conf_5s.tolist()
+	inv = list()
+	for i in range(len(conf_5s)):
+		if conf_5s[i] < conf_level:
+			inv.append(i)
+	
+	inv_5 = list()
+	if len(inv) != 0:
+		idx_s = inv[0]
+		idx_e = inv[0]
+		for i in range(1, len(inv)):
+			if inv[i] - idx_e == 1:
+				idx_e = inv[i]
+				continue
+			else:
+				inv_5.append([idx_s, idx_e])
+				idx_s = inv[i]
+				idx_e = inv[i]
+
+	final_inv = list()
+	if len(inv_5) != 0:
+		for i in range(len(inv_5)):
+			start_time = inv_5[i][0] * 5
+			end_time = (inv_5[i][1] + 1) * 5 - 1
+			for k in reversed(range(start_time-5, start_time)):
+				if k >= 0 and conf_s[k] < conf_level:
+					start_time = k
+				else:
+					break
+			for k in range(end_time, end_time + 5):
+				if k < len(conf_s) and conf_s[k] < conf_level:
+					end_time = k
+				else:
+					break
+			final_inv.append([start_time, end_time])
+
+	# deal with final output
+	if len(final_inv) != 0:
+		if len(final_inv) == 1:
+			final_inv = list()
+		else:
+			start_time = final_inv[-1][0]
+			end_time = final_inv[-1][1]
+			final_inv[-1] = [start_time]
+
+	return final_inv
+
+
 def main(align):
 	align.process_align()
 	align.post_process()
@@ -232,16 +295,20 @@ if __name__ == "__main__":
 	# argv[3]: Px
 	# argv[4]: start offset
 	# argv[5]: end offset
+	# argv[6]: noise file path
 
 	recog_file_path = sys.argv[1]
 	trans_file_path = sys.argv[2]
 	label = sys.argv[3]
-	start_offset = float(sys.argv[4])
-	end_offset = float(sys.argv[5])
+	# start_offset = float(sys.argv[4])
+	# end_offset = float(sys.argv[5])
 	output_ctm_path = 'output_'+sys.argv[3]+'/'+sys.argv[3]+'.ctm'
 	output_stm_path = 'output_'+sys.argv[3]+'/'+sys.argv[3]+'_align.stm'
 	noise_itv = [[0, 185], [1494.5]]
+	noise_file_path = sys.argv[6]
 
-	align = Alignment(label, recog_file_path, trans_file_path, start_offset, end_offset, output_stm_path, output_ctm_path, noise_itv)
+	noise_inv = get_noise_itv(noise_file_path, 0.25)
+	# print(inv)
+	align = Alignment(label, recog_file_path, trans_file_path, output_stm_path, output_ctm_path, noise_itv)
 	main(align)
 
