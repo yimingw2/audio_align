@@ -59,8 +59,8 @@ class Alignment():
 			for line in f:
 				part = line.split()
 				if not (float(part[3]) == 0 or self._none_word(part[4]) == True):
-					time_global = float(part[2])
-					if self._is_noise(time_global):
+					time_global = float(part[2])				
+					if time_global < self.noise_itv[0][1] or time_global > self.noise_itv[-1][0]:
 						continue
 					recog_list.append([part[4], time_global, float(part[3])]) # [word, time_global, time_inv]
 		return recog_list
@@ -108,8 +108,8 @@ class Alignment():
 		i_s = 0
 		i_e = 0
 		if self.trans_t_dict[0][1] == 0:
-			self.trans_t_dict[0][1] == self.noise_itv[0][1]  # start_offset
-			self.trans_t_dict[0][2] == 0.1
+			self.trans_t_dict[0][1] = self.noise_itv[0][1]  # start_offset
+			self.trans_t_dict[0][2] = 0.1
 		if self.trans_t_dict[len(self.trans_t_dict)-1][1] == 0:
 			self.trans_t_dict[len(self.trans_t_dict)-1][1] = self.noise_itv[-1][0]  # end_offset
 			self.trans_t_dict[len(self.trans_t_dict)-1][2] = 0.1
@@ -130,6 +130,7 @@ class Alignment():
 				# incorperate the noise inverval
 				s_time = self.trans_t_dict[i_s][1]
 				e_time = self.trans_t_dict[i_e][1]
+				"""
 				for ts in self.noise_itv:
 					if len(ts) == 2:						
 						time1 = ts[0]
@@ -140,7 +141,7 @@ class Alignment():
 						time0 = ts[0]
 						if s_time < time0 and time0 < e_time:
 							e_time = min(e_time, time0)
-
+				"""
 				char_len = 0
 				for i in range(i_s, i_e):
 					char_len += len(self.trans_t_dict[i][0])
@@ -201,26 +202,13 @@ class Alignment():
 						if len(ts) == 2:
 							time1 = ts[0]
 							time2 = ts[1]
-							if start_time < time1 and time2 < end_time:
+							if (start_time < time1 and time1 < end_time) or \
+							   (start_time < time2 and time2 < end_time):
 								contain_noise = True
 								break
 					if not contain_noise:
 						output_f_stm.write('%s %d %s %.3f %.3f <none> %s\n' % (self.label, label_tag, self.label, start_time, end_time, "".join(line_output)))
 
-				"""
-				# for ctm file
-				for i in word_idx:
-					output_f_ctm.write("%s %d %.3f %.3f %s 1\n" % (self.label, label_tag, self.trans_t_dict[i][1], self.trans_t_dict[i][2], self.trans_t_dict[i][0]))
-				if len(word_idx) != 0:
-					output_f_ctm.write("%s %d %.3f 0 <#s> 1\n" % (self.label, label_tag, self.trans_t_dict[word_idx[len(word_idx)-1]][1]+self.trans_t_dict[word_idx[len(word_idx)-1]][2]))
-				"""
-'''
-def write_output(stm_t_dict, output_file_name):
-	f = open(output_file_name, 'w')
-	for i in range(len(stm_t_dict)):
-		f.write('%s\t\t%.3f\t%.3f\n' % (trans_t_dict[i][0], trans_t_dict[i][1], trans_t_dict[i][2]))
-	f.close()
-'''
 
 def get_noise_itv(noise_file_path, conf_level):
 	conf = scipy.io.loadmat(noise_file_path)
@@ -231,10 +219,6 @@ def get_noise_itv(noise_file_path, conf_level):
 	conf_s = np.mean(conf, axis=1)
 	seconds = conf_s.shape[0] / 5
 	conf_5s = np.mean(np.reshape(conf_s[:seconds*5], (-1,5)), axis=1)
-
-	print(np.mean(conf_s[:185]))
-	print(np.mean(conf_s[185:1495]))
-	print(np.mean(conf_s[1495:]))
 
 	conf_s = conf_s.tolist()
 	conf_5s = conf_5s.tolist()
@@ -303,7 +287,6 @@ if __name__ == "__main__":
 	trans_file_path = sys.argv[2]
 	label = sys.argv[3]
 	output_stm_path = 'output_'+sys.argv[3]+'/'+sys.argv[3]+'.stm'
-	#noise_itv = [[0, 185], [1494.5]]
 	noise_file_path = sys.argv[6]
 
 	noise_itv = get_noise_itv(noise_file_path, 0.25)
