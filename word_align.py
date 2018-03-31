@@ -5,6 +5,7 @@
 ####################################################################
 
 import sys
+import argparse
 import scipy.io
 import numpy as np
 from fuzzy_match_word import fuzzy_match
@@ -269,28 +270,36 @@ def get_noise_itv(noise_file_path, conf_level):
 	return final_inv
 
 
-def main(align):
+def align_main(align):
 	align.process_align()
 	align.post_process()
 	align.output_align_sentence()
 
 
-if __name__ == "__main__":
-	# argv[1]: pattern
-	# argv[2]: text
-	# argv[3]: Px
-	# argv[4]: start offset
-	# argv[5]: end offset
-	# argv[6]: noise file path
+def parse_arguments():
+	parser = argparse.ArgumentParser(description='Process alignment argument.')
+	parser.add_argument('--recognition-file-path', dest='recog_file_path', type=str)
+	parser.add_argument('--transcription-file-path', dest='trans_file_path', type=str)
+	parser.add_argument('--label', dest='label', type=str)
+	parser.add_argument('--noise-file-path', dest='noise_file_path', type=str)
+	return parser.parse_args()
 
-	recog_file_path = sys.argv[1]
-	trans_file_path = sys.argv[2]
-	label = sys.argv[3]
-	output_stm_path = 'output_'+sys.argv[3]+'/'+sys.argv[3]+'.stm'
-	noise_file_path = sys.argv[6]
+
+def main(args):
+	args = parse_arguments()
+
+	recog_file_path = args.recog_file_path
+	trans_file_path = args.trans_file_path
+	label = args.label
+	noise_file_path = args.noise_file_path
+	output_stm_path = 'output_'+label+'/'+label+'.stm'
 
 	noise_itv = get_noise_itv(noise_file_path, 0.25)
 	print(noise_itv)
 	align = Alignment(label, recog_file_path, trans_file_path, output_stm_path, noise_itv)
-	main(align)
+	align_main(align)
+
+
+if __name__ == "__main__":
+	main(sys.argv)
 
