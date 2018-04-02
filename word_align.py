@@ -271,12 +271,6 @@ def get_noise_itv(noise_file_path, conf_level):
 	return final_inv
 
 
-def align_main(align):
-	align.process_align()
-	align.post_process()
-	align.output_align_sentence()
-
-
 def parse_arguments():
 	parser = argparse.ArgumentParser(description='Process alignment argument.')
 	parser.add_argument('--recognition-file-path', dest='recog_file_path', type=str)
@@ -295,12 +289,12 @@ def main(args):
 	label = args.label
 	noise_file_path = args.noise_file_path
 	output_file_path = args.output_file_path
-	# output_stm_path = 'output_'+label+'/'+label+'.stm'
 
 	noise_itv = get_noise_itv(noise_file_path, 0.25)
-	print(noise_itv)
 	align = Alignment(label, recog_file_path, trans_file_path, output_file_path, noise_itv)
-	align_main(align)
+	align.process_align()
+	align.post_process()
+	align.output_align_sentence()
 
 
 if __name__ == "__main__":
