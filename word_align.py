@@ -60,7 +60,8 @@ class Alignment():
 			for line in f:
 				part = line.split()
 				if not (float(part[3]) == 0 or self._none_word(part[4]) == True):
-					time_global = float(part[2])				
+					time_global = float(part[2])
+					# only ignore the time stamps before and start offset and the end offset				
 					if time_global < self.noise_itv[0][1] or time_global > self.noise_itv[-1][0]:
 						continue
 					recog_list.append([part[4], time_global, float(part[3])]) # [word, time_global, time_inv]
@@ -208,7 +209,7 @@ class Alignment():
 								contain_noise = True
 								break
 					if not contain_noise:
-						output_f_stm.write('%s %d %s %.3f %.3f <none> %s\n' % (self.label, label_tag, self.label, start_time, end_time, "".join(line_output)))
+						output_f_stm.write('%s 1 %d %.3f %.3f <none> %s\n' % (self.label, label_tag, start_time, end_time, "".join(line_output)))
 
 
 def get_noise_itv(noise_file_path, conf_level):
@@ -282,6 +283,7 @@ def parse_arguments():
 	parser.add_argument('--transcription-file-path', dest='trans_file_path', type=str)
 	parser.add_argument('--label', dest='label', type=str)
 	parser.add_argument('--noise-file-path', dest='noise_file_path', type=str)
+	parser.add_argument('--output-file-path', dest='output_file_path', type=str)
 	return parser.parse_args()
 
 
@@ -292,11 +294,12 @@ def main(args):
 	trans_file_path = args.trans_file_path
 	label = args.label
 	noise_file_path = args.noise_file_path
-	output_stm_path = 'output_'+label+'/'+label+'.stm'
+	output_file_path = args.output_file_path
+	# output_stm_path = 'output_'+label+'/'+label+'.stm'
 
 	noise_itv = get_noise_itv(noise_file_path, 0.25)
 	print(noise_itv)
-	align = Alignment(label, recog_file_path, trans_file_path, output_stm_path, noise_itv)
+	align = Alignment(label, recog_file_path, trans_file_path, output_file_path, noise_itv)
 	align_main(align)
 
 
