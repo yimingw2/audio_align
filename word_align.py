@@ -61,8 +61,10 @@ class Alignment():
 				part = line.split()
 				if not (float(part[3]) == 0 or self._none_word(part[4]) == True):
 					time_global = float(part[2])
-					# only ignore the time stamps before and start offset and the end offset				
-					if time_global < self.noise_itv[0][1] or time_global > self.noise_itv[-1][0]:
+					# only ignore the time stamps before and start offset and the end offset
+					if len(self.noise_itv) == 1 and time_global < self.noise_itv[0][1]:
+						continue			
+					if len(self.noise_itv) >= 2 and (time_global < self.noise_itv[0][1] or time_global > self.noise_itv[-1][0]):
 						continue
 					recog_list.append([part[4], time_global, float(part[3])]) # [word, time_global, time_inv]
 		return recog_list
