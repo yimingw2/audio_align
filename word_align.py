@@ -80,7 +80,7 @@ class Alignment():
 		with open(self.trans_file_path, 'r') as in_f:
 			f = iter(in_f)
 			for line in f:
-				word = line.lower().split();
+				word = line.decode('utf-8').lower().split();
 				if len(word) == 0 or len(word) == 1:
 					continue
 				'''
