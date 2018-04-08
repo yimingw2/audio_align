@@ -55,7 +55,7 @@ class Alignment():
 		:return: a recog_list with format [word, global_time, time_inv]
 		"""
 		recog_list = list()
-		with open(self.recog_file_path, 'r') as int_f:
+		with open(self.recog_file_path, 'r', encoding='utf-8') as int_f:
 			f = iter(int_f)
 			for line in f:
 				part = line.split()
@@ -77,10 +77,10 @@ class Alignment():
 		:return: a word_list with format [word, 0, 0]
 		"""
 		t_word = list()
-		with open(self.trans_file_path, 'r') as in_f:
+		with open(self.trans_file_path, 'r', encoding='utf-8') as in_f:
 			f = iter(in_f)
 			for line in f:
-				word = line.decode('utf-8').lower().split();
+				word = line.lower().split();
 				if len(word) == 0 or len(word) == 1:
 					continue
 				'''
@@ -162,8 +162,8 @@ class Alignment():
 
 	def output_align_sentence(self):
 
-		with open(self.trans_file_path, 'r') as input_f, \
-			 open(self.output_stm_path, 'w') as output_f_stm:
+		with open(self.trans_file_path, 'r', encoding='utf-8') as input_f, \
+			 open(self.output_stm_path, 'w', encoding='utf-8') as output_f_stm:
 
 			f = iter(input_f)
 			idx = 0
@@ -217,11 +217,11 @@ class Alignment():
 def get_noise_itv(noise_file_path, conf_level):
 	conf = scipy.io.loadmat(noise_file_path)
 	conf = conf["conf"]
-	frames = conf.shape[0] / 10
+	frames = int(conf.shape[0] / 10)
 	conf = conf[:frames*10,1]
 	conf = np.reshape(conf, (-1,10))
 	conf_s = np.mean(conf, axis=1)
-	seconds = conf_s.shape[0] / 5
+	seconds = int(conf_s.shape[0] / 5)
 	conf_5s = np.mean(np.reshape(conf_s[:seconds*5], (-1,5)), axis=1)
 
 	conf_s = conf_s.tolist()
