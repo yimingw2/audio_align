@@ -1,14 +1,9 @@
-####################################################################
-# usage:
-
-# python rough_align.py pattern text Px start_offset end_offset
-####################################################################
-
 import sys
 import argparse
 import scipy.io
 import numpy as np
-from fuzzy_match_word import fuzzy_match
+import matplotlib.pyplot as plt
+from fuzzy_match_word import viterbi_align
 
 
 class Alignment():
@@ -55,6 +50,8 @@ class Alignment():
 		:return: a recog_list with format [word, global_time, time_inv]
 		"""
 		recog_list = list()
+		self.fake_start_offset = -1
+		self.fake_end_offset = -1
 		# with open(self.recog_file_path, 'r', encoding='utf-8') as int_f:
 		with open(self.recog_file_path, 'r') as int_f:
 			f = iter(int_f)
@@ -62,9 +59,10 @@ class Alignment():
 				part = line.split()
 				if not (float(part[3]) == 0 or self._none_word(part[4]) == True):
 					time_global = float(part[2])
-					# only ignore the time stamps before and start offset and the end offset
-					if len(self.noise_itv) == 1 and time_global < self.noise_itv[0][1]:
-						continue			
+					if self.fake_start_offset == -1:
+						self.fake_start_offset = time_global
+					self.fake_end_offset = time_global
+					# only ignore the time stamps before and start offset and the end offset			
 					if len(self.noise_itv) >= 2 and (time_global < self.noise_itv[0][1] or time_global > self.noise_itv[-1][0]):
 						continue
 					recog_list.append([part[4], time_global, float(part[3])]) # [word, time_global, time_inv]
@@ -102,7 +100,8 @@ class Alignment():
 	def process_align(self):
 		stm_t_dict = self._process_recog()
 		trans_t_dict = self._process_trans()
-		self.trans_t_dict = fuzzy_match(stm_t_dict, 0, len(stm_t_dict)-1, trans_t_dict, 0, len(trans_t_dict)-1)
+		align_obj = viterbi_align(stm_t_dict, trans_t_dict, self.label, True)
+		self.trans_t_dict = align_obj.viterbi(0, len(stm_t_dict)-1, 0, len(trans_t_dict)-1)
 
 
 	def post_process(self):
@@ -114,10 +113,16 @@ class Alignment():
 		i_s = 0
 		i_e = 0
 		if self.trans_t_dict[0][1] == 0:
-			self.trans_t_dict[0][1] = self.noise_itv[0][1]  # start_offset
+			if len(self.noise_itv) == 0:
+				self.trans_t_dict[0][1] = self.fake_start_offset
+			else:
+				self.trans_t_dict[0][1] = self.noise_itv[0][1]  # start_offset
 			self.trans_t_dict[0][2] = 0.1
 		if self.trans_t_dict[len(self.trans_t_dict)-1][1] == 0:
-			self.trans_t_dict[len(self.trans_t_dict)-1][1] = self.noise_itv[-1][0]  # end_offset
+			if len(self.noise_itv) == 0:
+				self.trans_t_dict[len(self.trans_t_dict)-1][1] = self.fake_end_offset
+			else:
+				self.trans_t_dict[len(self.trans_t_dict)-1][1] = self.noise_itv[-1][0]  # end_offset
 			self.trans_t_dict[len(self.trans_t_dict)-1][2] = 0.1
 
 		while i_s < len(self.trans_t_dict):
@@ -162,8 +167,9 @@ class Alignment():
 			i_s = i_e
 
 
-	def output_align_sentence(self):
+	def output_align_sentence(self, hist=False):
 
+		wps = list()
 		# with open(self.trans_file_path, 'r', encoding='utf-8') as input_f, \
 		# 	 open(self.output_stm_path, 'w', encoding='utf-8') as output_f_stm:
 		with open(self.trans_file_path, 'r') as input_f, open(self.output_stm_path, 'w') as output_f_stm:
@@ -172,6 +178,8 @@ class Alignment():
 			idx = 0
 			for line in f:
 				word = line.lower().split()
+				if len(word) == 0 or len(word) == 1:
+					continue
 				label_tag = word[0]
 				if label_tag == "#doc#" or label_tag == "#doc+":
 					label_tag = 1
@@ -203,6 +211,9 @@ class Alignment():
 					# since for ASR it should have 0.01s to recognize
 					if end_time - start_time < 0.01:
 						end_time = start_time + 0.01
+					# calculate align words per seconds
+					ratio = len(word_idx) / float(end_time - start_time)
+					wps.append(ratio)
 					# ignore all the sentence which include a noise interval
 					contain_noise = False
 					for ts in self.noise_itv:
@@ -215,6 +226,12 @@ class Alignment():
 								break
 					if not contain_noise:
 						output_f_stm.write('%s 1 %d %.3f %.3f <none> %s\n' % (self.label, label_tag, start_time, end_time, "".join(line_output)))
+
+		wps = sorted(wps)
+		# plt.hist(wps)
+		# print(wps)
+		# plt.savefig("./output/"+self.label+".png")
+		scipy.io.savemat("./output/"+self.label+"wps.mat", mdict={'wps':wps})
 
 
 def get_noise_itv(noise_file_path, conf_level):
