@@ -9,11 +9,10 @@ from fuzzy_match_word import viterbi_align
 class Alignment():
 
 
-	def __init__(self, label, recog_file_path, trans_file_path, output_stm_path, noise_itv):
+	def __init__(self, label, recog_file_path, trans_file_path, noise_itv):
 		self.label = label
 		self.recog_file_path = recog_file_path
 		self.trans_file_path = trans_file_path
-		self.output_stm_path = output_stm_path
 		self.noise_itv = noise_itv  # [[t1, t2], [t3]]
 
 
@@ -97,11 +96,11 @@ class Alignment():
 		return t_word
 
 
-	def process_align(self):
+	def process_align(self, wrong_path):
 		stm_t_dict = self._process_recog()
 		trans_t_dict = self._process_trans()
-		align_obj = viterbi_align(stm_t_dict, trans_t_dict, self.label, True)
-		self.trans_t_dict = align_obj.viterbi(0, len(stm_t_dict)-1, 0, len(trans_t_dict)-1)
+		align_obj = viterbi_align(stm_t_dict, trans_t_dict, self.label)
+		self.trans_t_dict = align_obj.viterbi(0, len(stm_t_dict)-1, 0, len(trans_t_dict)-1, wrong_path)
 
 
 	def post_process(self):
@@ -167,12 +166,12 @@ class Alignment():
 			i_s = i_e
 
 
-	def output_align_sentence(self, hist=False):
+	def output_align_sentence(self, stm_path, wps_path):
 
 		wps = list()
 		# with open(self.trans_file_path, 'r', encoding='utf-8') as input_f, \
 		# 	 open(self.output_stm_path, 'w', encoding='utf-8') as output_f_stm:
-		with open(self.trans_file_path, 'r') as input_f, open(self.output_stm_path, 'w') as output_f_stm:
+		with open(self.trans_file_path, 'r') as input_f, open(stm_path, 'w') as output_f_stm:
 
 			f = iter(input_f)
 			idx = 0
@@ -231,7 +230,7 @@ class Alignment():
 		# plt.hist(wps)
 		# print(wps)
 		# plt.savefig("./output/"+self.label+".png")
-		scipy.io.savemat("./output/"+self.label+"wps.mat", mdict={'wps':wps})
+		scipy.io.savemat(wps_path, mdict={'wps':wps})
 
 
 def get_noise_itv(noise_file_path, conf_level):
@@ -306,17 +305,21 @@ def parse_arguments():
 def main(args):
 	args = parse_arguments()
 
-	recog_file_path = args.recog_file_path
-	trans_file_path = args.trans_file_path
 	label = args.label
-	noise_file_path = args.noise_file_path
+	recog_file_path = args.recog_file_path + "/" + label + ".ctm"
+	trans_file_path = args.trans_file_path + "/" + label + ".trl"
+	noise_file_path = args.noise_file_path + "/" + label + ".mat"
 	output_file_path = args.output_file_path
 
+	stm_path = output_file_path + "/" + label + ".stm"
+	wps_path = output_file_path + "/" + label + "_wps.mat"
+	wrong_path = output_file_path + "/" + label + "_wrong"
+
 	noise_itv = get_noise_itv(noise_file_path, 0.25)
-	align = Alignment(label, recog_file_path, trans_file_path, output_file_path, noise_itv)
-	align.process_align()
+	align = Alignment(label, recog_file_path, trans_file_path, noise_itv)
+	align.process_align(wrong_path)
 	align.post_process()
-	align.output_align_sentence()
+	align.output_align_sentence(stm_path, wps_path)
 
 
 if __name__ == "__main__":
