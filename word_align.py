@@ -1,4 +1,5 @@
 import sys
+import math
 import argparse
 import scipy.io
 import numpy as np
@@ -9,11 +10,12 @@ from fuzzy_match_word import viterbi_align
 class Alignment():
 
 
-	def __init__(self, label, recog_file_path, trans_file_path, noise_itv):
+	def __init__(self, label, recog_file_path, trans_file_path, noise_itv, pair_file_path):
 		self.label = label
 		self.recog_file_path = recog_file_path
 		self.trans_file_path = trans_file_path
 		self.noise_itv = noise_itv  # [[t1, t2], [t3]]
+		self.pair_file_path = pair_file_path
 
 
 	def _none_word(self, s):
@@ -96,11 +98,11 @@ class Alignment():
 		return t_word
 
 
-	def process_align(self, wrong_path):
+	def process_align(self):
 		stm_t_dict = self._process_recog()
 		trans_t_dict = self._process_trans()
-		align_obj = viterbi_align(stm_t_dict, trans_t_dict, self.label)
-		self.trans_t_dict = align_obj.viterbi(0, len(stm_t_dict)-1, 0, len(trans_t_dict)-1, wrong_path)
+		align_obj = viterbi_align(stm_t_dict, trans_t_dict, self.label, self.pair_file_path)
+		self.trans_t_dict = align_obj.viterbi(0, len(stm_t_dict)-1, 0, len(trans_t_dict)-1)
 
 
 	def post_process(self):
@@ -166,7 +168,7 @@ class Alignment():
 			i_s = i_e
 
 
-	def output_align_sentence(self, stm_path, wps_path):
+	def output_align_sentence(self, stm_path):
 
 		wps = list()
 		# with open(self.trans_file_path, 'r', encoding='utf-8') as input_f, \
@@ -225,12 +227,14 @@ class Alignment():
 								break
 					if not contain_noise:
 						output_f_stm.write('%s 1 %d %.3f %.3f <none> %s\n' % (self.label, label_tag, start_time, end_time, "".join(line_output)))
+						if math.log(ratio) < -1.5 or math.log(ratio) > 3:
+							print("{}\t{}\t{}\t{}".format(self.label, start_time, end_time, line))
 
-		wps = sorted(wps)
+		# wps = sorted(wps)
 		# plt.hist(wps)
 		# print(wps)
 		# plt.savefig("./output/"+self.label+".png")
-		scipy.io.savemat(wps_path, mdict={'wps':wps})
+		# scipy.io.savemat(wps_path, mdict={'wps':wps})
 
 
 def get_noise_itv(noise_file_path, conf_level):
@@ -299,6 +303,7 @@ def parse_arguments():
 	parser.add_argument('--label', dest='label', type=str)
 	parser.add_argument('--noise-file-path', dest='noise_file_path', type=str)
 	parser.add_argument('--output-file-path', dest='output_file_path', type=str)
+	parser.add_argument('--pair-file-path', dest='pair_file_path', type=str)
 	return parser.parse_args()
 
 
@@ -310,16 +315,16 @@ def main(args):
 	trans_file_path = args.trans_file_path + "/" + label + ".trl"
 	noise_file_path = args.noise_file_path + "/" + label + ".mat"
 	output_file_path = args.output_file_path
+	pair_file_path = args.pair_file_path
 
 	stm_path = output_file_path + "/" + label + ".stm"
-	wps_path = output_file_path + "/" + label + "_wps.mat"
-	wrong_path = output_file_path + "/" + label + "_wrong"
+	# wps_path = output_file_path + "/" + label + "_wps.mat"
 
 	noise_itv = get_noise_itv(noise_file_path, 0.25)
-	align = Alignment(label, recog_file_path, trans_file_path, noise_itv)
-	align.process_align(wrong_path)
+	align = Alignment(label, recog_file_path, trans_file_path, noise_itv, pair_file_path)
+	align.process_align()
 	align.post_process()
-	align.output_align_sentence(stm_path, wps_path)
+	align.output_align_sentence(stm_path)
 
 
 if __name__ == "__main__":

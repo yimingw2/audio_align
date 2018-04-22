@@ -2,11 +2,24 @@ import operator
 
 class viterbi_align():
 
-    def __init__(self, pattern, text, label):
+    def __init__(self, pattern, text, label, pair_list_path):
 
         self.pattern = pattern
         self.text = text
         self.label = label
+
+        self.pair_list = self._get_pair_list(pair_list_path)
+        # self.pair_list = set()
+
+
+    def _get_pair_list(self, pair_list_path):
+        pair = set()
+        with open(pair_list_path) as pair_list_f:
+            f = iter(pair_list_f)
+            for line in f:
+                words = line.split("\t")
+                pair.add((words[0], words[1])) # (text_label, recog_label)
+        return pair
 
 
     def _edit_distance(self, string_a, string_b):
@@ -39,7 +52,9 @@ class viterbi_align():
 
 
     def _compute_cost(self, string_a, string_b):
-        # compute character level cost of two strings
+        # compute character level cost of two strings (pattern, text)
+        if (string_b, string_a) in self.pair_list:
+            return 0.0
         len_a = len(string_a)
         len_b = len(string_b)
         cost_ed = self._edit_distance(string_a, string_b)
@@ -50,7 +65,7 @@ class viterbi_align():
     #     return float(len(string_a)) / 5.
 
 
-    def viterbi(self, idx1_p, idx2_p, idx1_t, idx2_t, wrong_path):
+    def viterbi(self, idx1_p, idx2_p, idx1_t, idx2_t):
         """
         find the best edit distance
 
@@ -111,11 +126,11 @@ class viterbi_align():
 
         # if self.align_output:
             # align_right_f = open("./output/"+self.label+"_align_right", "w")
-        align_wrong_f = open(wrong_path, "w")
+        # align_wrong_f = open(wrong_path, "w")
             # align_output_f = open('./output/'label+'_align_right', 'w', encoding='utf-8')
             # align_output_f = open('./output/'label+'_align_wrong', 'w', encoding='utf-8')
         # right_align = dict()
-        wrong_align = dict()
+        # wrong_align = dict()
 
         while cy != 0:
             dx = dp[cx][cy][1]
@@ -138,24 +153,25 @@ class viterbi_align():
                 if self.text[idx1_t+cy-1][0] != self.pattern[idx1_p+cx-1][0]:
                     text_label = self.text[idx1_t+cy-1][0]
                     pattern_label = self.pattern[idx1_p+cx-1][0]
-                    if (text_label, pattern_label) in wrong_align:
-                        wrong_align[(text_label, pattern_label)] += 1
-                    else:
-                        wrong_align[(text_label, pattern_label)] = 1
+                    # if (text_label, pattern_label) in wrong_align:
+                    #     wrong_align[(text_label, pattern_label)] += 1
+                    # else:
+                    #     wrong_align[(text_label, pattern_label)] = 1
+
 
             cx += dx
             cy += dy
 
         # right_align_s = sorted(right_align.items(), key=operator.itemgetter(1), reverse=True)
-        wrong_align_s = sorted(wrong_align.items(), key=operator.itemgetter(1), reverse=True)
+        # wrong_align_s = sorted(wrong_align.items(), key=operator.itemgetter(1), reverse=True)
 
         # for r in right_align_s:
         #     align_right_f.write("{}\t{}\n".format(r[0], r[1]))
-        for w in wrong_align_s:
-            align_wrong_f.write("{}\t{}\t{}\n".format(w[0][0], w[0][1], w[1]))
+        # for w in wrong_align_s:
+        #     align_wrong_f.write("{}\t{}\t{}\n".format(w[0][0], w[0][1], w[1]))
 
         # align_right_f.close()
-        align_wrong_f.close()
+        # align_wrong_f.close()
 
         return self.text
         
