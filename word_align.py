@@ -99,6 +99,11 @@ class Alignment():
 
 
 	def process_align(self):
+		"""
+		Process the align procedure
+		:param: None
+		:return: None
+		"""
 		stm_t_dict = self._process_recog()
 		trans_t_dict = self._process_trans()
 		align_obj = viterbi_align(stm_t_dict, trans_t_dict, self.label, self.pair_file_path)
@@ -107,7 +112,7 @@ class Alignment():
 
 	def post_process(self):
 		"""
-		fill the deletion with linear interpolation
+		Fill the deletion with linear interpolation
 		:param: None
 		:return: None
 		"""
@@ -168,11 +173,33 @@ class Alignment():
 			i_s = i_e
 
 
+
+	def _output(self, output_f, label_tag, start_time, end_time, output_sent):
+
+		# since for ASR it should have 0.01s to recognize
+		if end_time - start_time < 0.01:
+			end_time = start_time + 0.01
+
+		ratio = len(output_sent) / float(end_time - start_time)
+		contain_noise = False
+		for ts in self.noise_itv:
+			if len(ts) == 2:
+				time1 = ts[0]
+				time2 = ts[1]
+				if (start_time < time1 and time1 < end_time) or (start_time < time2 and time2 < end_time):
+					contain_noise = True
+					break
+		if not contain_noise:
+			if math.log(ratio) < -1.5 or math.log(ratio) > 3:
+				return
+			else:
+				output_f.write('%s 1 %d %.3f %.3f <none> %s\n' % (self.label, label_tag, start_time, end_time, " ".join(output_sent)))
+
+
+
 	def output_align_sentence(self, stm_path):
 
 		wps = list()
-		# with open(self.trans_file_path, 'r', encoding='utf-8') as input_f, \
-		# 	 open(self.output_stm_path, 'w', encoding='utf-8') as output_f_stm:
 		with open(self.trans_file_path, 'r') as input_f, open(stm_path, 'w') as output_f_stm:
 
 			f = iter(input_f)
@@ -198,20 +225,59 @@ class Alignment():
 					if word[i] != "<name>":
 						word_idx.append(idx)
 						line_output.append(word[i])
-						line_output.append(" ")
 						idx += 1
 
 				# for stm file
 				if len(word_idx) != 0:
 					start_time = self.trans_t_dict[word_idx[0]][1]
-					tmp_e = self.trans_t_dict[word_idx[len(word_idx)-1]][1]+self.trans_t_dict[word_idx[len(word_idx)-1]][2]
+					tmp_e = self.trans_t_dict[word_idx[len(word_idx)-1]][1] + self.trans_t_dict[word_idx[len(word_idx)-1]][2]
 					if word_idx[len(word_idx)-1] == len(self.trans_t_dict)-1 or tmp_e < self.trans_t_dict[word_idx[len(word_idx)-1]+1][1]:
 						end_time = tmp_e
 					else:
 						end_time = self.trans_t_dict[word_idx[len(word_idx)-1]+1][1]
+					"""
 					# since for ASR it should have 0.01s to recognize
 					if end_time - start_time < 0.01:
 						end_time = start_time + 0.01
+					"""
+
+					# each output sentence should be more than 10 words
+					st = start_time
+					et = end_time
+					idx_s = 0
+					idx_e = 0
+					while et - st > 10:
+						while True:
+							time_tmp1 = self.trans_t_dict[word_idx[idx_e]][1] + self.trans_t_dict[word_idx[idx_e]][2]
+							# if the sentences reaches the end
+							if idx_e == len(word_idx) - 1:
+								time_e = end_time
+								break
+							tmp = self.trans_t_dict[word_idx[idx_e+1]][1]
+							# if there is a parse for the word
+							if time_tmp1 < tmp and idx_e - idx_s + 1 > 5:
+								time_e = time_tmp1
+								break
+							time_tmp2 = self.trans_t_dict[word_idx[idx_e+1]][1] + self.trans_t_dict[word_idx[idx_e+1]][2]
+							# if the sentence length is more than 10
+							if time_tmp2 - st > 10:
+								time_e = time_tmp1
+								break
+							idx_e += 1
+						output_sent = line_output[idx_s:idx_e+1]
+						self._output(output_f_stm, label_tag, st, time_e, output_sent)
+						if idx_e != len(word_idx) - 1:
+							idx_s = idx_e + 1
+							idx_e += 1
+							st = self.trans_t_dict[word_idx[idx_s]][1]
+							continue
+						else:
+							break
+					if idx_e != len(word_idx) - 1:
+						output_sent = line_output[idx_s:]
+						self._output(output_f_stm, label_tag, st, et, output_sent)
+
+					"""
 					# calculate align words per seconds
 					ratio = len(word_idx) / float(end_time - start_time)
 					wps.append(ratio)
@@ -226,18 +292,18 @@ class Alignment():
 								contain_noise = True
 								break
 					if not contain_noise:
-						output_f_stm.write('%s 1 %d %.3f %.3f <none> %s\n' % (self.label, label_tag, start_time, end_time, "".join(line_output)))
 						if math.log(ratio) < -1.5 or math.log(ratio) > 3:
-							print("{}\t{}\t{}\t{}".format(self.label, start_time, end_time, line))
-
-		# wps = sorted(wps)
-		# plt.hist(wps)
-		# print(wps)
-		# plt.savefig("./output/"+self.label+".png")
-		# scipy.io.savemat(wps_path, mdict={'wps':wps})
+							continue
+						else:
+							output_f_stm.write('%s 1 %d %.3f %.3f <none> %s\n' % (self.label, label_tag, start_time, end_time, " ".join(line_output)))
+					"""
 
 
 def get_noise_itv(noise_file_path, conf_level):
+	
+	itv_time = 0
+	total_time = 0
+
 	conf = scipy.io.loadmat(noise_file_path)
 	conf = conf["conf"]
 	frames = int(conf.shape[0] / 10)
