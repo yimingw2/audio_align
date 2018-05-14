@@ -300,13 +300,14 @@ class Alignment():
 
 
 def get_noise_itv(noise_file_path, conf_level):
-	
+
 	itv_time = 0
 	total_time = 0
 
 	conf = scipy.io.loadmat(noise_file_path)
 	conf = conf["conf"]
 	frames = int(conf.shape[0] / 10)
+	total_time = frames  # calculate the total time
 	conf = conf[:frames*10,1]
 	conf = np.reshape(conf, (-1,10))
 	conf_s = np.mean(conf, axis=1)
@@ -349,6 +350,7 @@ def get_noise_itv(noise_file_path, conf_level):
 				else:
 					break
 			final_inv.append([start_time, end_time])
+			itv_time += (end_time - start_time)
 
 	# deal with final output
 	if len(final_inv) != 0:
@@ -359,7 +361,7 @@ def get_noise_itv(noise_file_path, conf_level):
 			end_time = final_inv[-1][1]
 			final_inv[-1] = [start_time]
 
-	return final_inv
+	return final_inv, total_time, itv_time
 
 
 def parse_arguments():
@@ -370,6 +372,7 @@ def parse_arguments():
 	parser.add_argument('--noise-file-path', dest='noise_file_path', type=str)
 	parser.add_argument('--output-file-path', dest='output_file_path', type=str)
 	parser.add_argument('--pair-file-path', dest='pair_file_path', type=str)
+	parser.add_argument('--itv-time-path', dest='itv_time_path', type=str)
 	return parser.parse_args()
 
 
@@ -382,15 +385,19 @@ def main(args):
 	noise_file_path = args.noise_file_path + "/" + label + ".mat"
 	output_file_path = args.output_file_path
 	pair_file_path = args.pair_file_path
+	itv_time_path = args.itv_time_path
 
 	stm_path = output_file_path + "/" + label + ".stm"
 	# wps_path = output_file_path + "/" + label + "_wps.mat"
 
-	noise_itv = get_noise_itv(noise_file_path, 0.25)
-	align = Alignment(label, recog_file_path, trans_file_path, noise_itv, pair_file_path)
-	align.process_align()
-	align.post_process()
-	align.output_align_sentence(stm_path)
+	noise_itv, total_time, itv_time = get_noise_itv(noise_file_path, 0.25)
+	with open(itv_time_path, 'a') as itv_output:
+		itv_output.write("{}\t{}\t{}\n".format(label, total_time, itv_time))
+
+	# align = Alignment(label, recog_file_path, trans_file_path, noise_itv, pair_file_path)
+	# align.process_align()
+	# align.post_process()
+	# align.output_align_sentence(stm_path)
 
 
 if __name__ == "__main__":
